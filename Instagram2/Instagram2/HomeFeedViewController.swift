@@ -8,23 +8,60 @@
 
 import UIKit
 import Parse
+//import ParseUI
 
-class HomeFeedViewController: UIViewController {
+class HomeFeedViewController: UIViewController, UITableViewDataSource {
 
     @IBOutlet weak var feedTableView: UITableView!
+
+    var posts: [Post] = []
+    let refreshControl = UIRefreshControl()
+    var isLoadingData = false
+    var loadDataAmount = 20
     
-    @IBOutlet weak var feedTableViewCell: UITableViewCell!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        feedTableView.dataSource = self
     
-    @IBOutlet weak var feedImageView: UIImageView!
-    
-    @IBOutlet weak var captionField: UITextView!
-    
-    @IBAction func compooseBut(_ sender: Any) {
-        print("eek")
+        let query = Post.query()
+        query?.order(byDescending: "createdAt")
+        query?.includeKey("author")
+        query?.limit = 20
+        
+        // fetch data asynchronously
+        query?.findObjectsInBackground { (posts, error) -> Void in
+            if let posts = posts {
+                self.posts = posts as! [Post]
+                self.feedTableView.reloadData()
+            } else {
+                print("error!!!!")
+            }
+        }
+        refreshControl.addTarget(self, action: #selector(getPosts), for: UIControlEvents.valueChanged)
+        self.feedTableView.insertSubview(refreshControl, at: 0)
+    }
+    @objc func getPosts() {
+        isLoadingData = true
+        let query = Post.query()!
+        query.order(byDescending: "createdAt")
+        query.includeKey("author")
+        query.limit = loadDataAmount
+        query.findObjectsInBackground { (posts: [PFObject]?, error: Error?) in
+            if let posts = posts {
+                self.posts = posts as! [Post]
+            }
+            self.isLoadingData = false
+            self.refreshControl.endRefreshing()
+            self.feedTableView.reloadData()
+        }
     }
     
+    @IBAction func composeButton(_ sender: Any) {
+        self.performSegue(withIdentifier: "letsCompoo", sender: nil)
+        
+    }
     
-
     @IBAction func LoggerOutNOw(_ sender: Any) {
         print("hey good dude 22")
         func logOut() {
@@ -42,26 +79,28 @@ class HomeFeedViewController: UIViewController {
         logOut()
     }
     
-
-    
-//   PFUSer.logout()
-//    let Login = storyboard.instantiateViewControllerWithIdentifier("someViewController") as! UIViewController
-//    self.presentViewController(Login, animated: true, completion: nil)
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        
-        
-
-        // Do any additional setup after loading the view.
-    }
-
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        getPosts()
     }
     
-
-
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return posts.count
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        print("new Cell!")
+        let cell = feedTableView.dequeueReusableCell(withIdentifier: "postCell", for: indexPath) as! PostCell
+        
+        let post = posts[indexPath.row]
+        
+        cell.captionView.text = post.caption
+        cell.postImageView.file = post.media
+        cell.postImageView.loadInBackground()
+        
+        return cell
+    }
+    
     /*
     // MARK: - Navigation
 
